@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
 import { ScrollArea } from "./ui/scroll-area";
-import { ChevronDown, ChevronUp, Send } from "lucide-react";
+import { ChevronDown, ChevronUp, Send, Loader2 } from "lucide-react";
 import { useAgentStream } from "@/hooks/useAgentStream";
 import { apiClient } from "@/lib/api";
 import { generateTitle } from "@/lib/gemini";
@@ -85,22 +85,24 @@ export function FloatingWindow({ paneId, title, onTitleGenerated }: FloatingWind
       {!isCollapsed && (
         <CardContent className="space-y-3">
           {/* Message history */}
-          <ScrollArea className="h-48 w-full rounded border p-3 bg-muted/30">
-            <div ref={scrollRef} className="space-y-2">
-              {messages.length === 0 && !isStreaming && (
-                <p className="text-sm text-muted-foreground text-center py-8">No messages yet. Enter a prompt below.</p>
-              )}
-              {messages.map((message, index) => (
-                <div key={index} className="text-sm">
-                  <pre className="whitespace-pre-wrap font-mono text-xs">{message}</pre>
-                </div>
-              ))}
-              {isStreaming && messages.length === 0 && (
-                <p className="text-sm text-muted-foreground">Agent is running...</p>
-              )}
-              {error && <p className="text-sm text-destructive">Error: {error}</p>}
-            </div>
-          </ScrollArea>
+          {!(messages.length === 0 && !isStreaming) && (
+            <ScrollArea className="h-48 w-full rounded border p-3 bg-muted/30">
+              <div ref={scrollRef} className="space-y-2">
+                {/* <p className="text-sm text-muted-foreground text-center py-2">No messages yet. Enter a prompt below.</p> */}
+                {messages.map((message, index) => (
+                  <div key={index} className="text-sm">
+                    <pre className="whitespace-pre-wrap font-mono text-xs">{message}</pre>
+                  </div>
+                ))}
+                {isStreaming && messages.length === 0 && (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
+                )}
+                {error && <p className="text-sm text-destructive">Error: {error}</p>}
+              </div>
+            </ScrollArea>
+          )}
 
           {/* Input area */}
           <div className="space-y-2">

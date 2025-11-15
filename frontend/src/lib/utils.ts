@@ -1,8 +1,8 @@
-import { type ClassValue, clsx } from "clsx"
-import { twMerge } from "tailwind-merge"
+import { type ClassValue, clsx } from "clsx";
+import { twMerge } from "tailwind-merge";
 
 export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs))
+  return twMerge(clsx(inputs));
 }
 
 export const PANE_LABELS = ["apricot", "banana", "cucumber", "dragonfruit", "eggplant", "fennel"];
@@ -13,4 +13,3 @@ export const PANE_LABELS = ["apricot", "banana", "cucumber", "dragonfruit", "egg
 export function getPaneLabel(paneId: number): string {
   return PANE_LABELS[paneId - 1] || `pane-${paneId}`;
 }
-

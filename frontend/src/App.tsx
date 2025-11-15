@@ -36,10 +36,7 @@ function App() {
     try {
       await apiClient.mergePane(currentItem.pane_id);
       console.log(`Successfully merged pane ${currentItem.pane_id}`);
-
-      // Wait a bit for backend to complete
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-
+      await new Promise((resolve) => setTimeout(resolve, 200));
       // Remove from queue
       setMergeQueue((prev) => prev.slice(1));
     } catch (err) {
@@ -107,11 +104,9 @@ function App() {
       // Wait for merge to complete by polling the pane status
       const waitForMerge = async () => {
         let attempts = 0;
-        const maxAttempts = 30; // 30 seconds max wait
+        const maxAttempts = 100; // 60 attempts
 
         while (attempts < maxAttempts) {
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-
           const state = await apiClient.getOrchestrationState();
           const pane = state.panes.find((p) => p.pane_id === paneId);
 
@@ -124,6 +119,9 @@ function App() {
           }
 
           attempts++;
+
+          // Small yield to prevent blocking
+          await new Promise((resolve) => setTimeout(resolve, 500));
         }
 
         console.warn(`Timeout waiting for merge to complete for pane ${paneId}`);

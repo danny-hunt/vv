@@ -106,6 +106,7 @@ async def get_orchestration_state():
     """
     Get the current status of all 6 panes.
     Polls git status for each pane.
+    Also automatically updates panes that are stale, not ahead, and have no agent running.
     """
     panes = []
     
@@ -121,6 +122,15 @@ async def get_orchestration_state():
             is_stale=status.get("is_stale", False),
             agent_running=agent_running
         ))
+        
+        # Auto-update logic: if pane is stale, not ahead, and agent not running
+        if (status.get("active", False) and 
+            status.get("is_stale", False) and 
+            not status.get("is_ahead", False) and 
+            not agent_running):
+            logger.info(f"[AUTO-UPDATE] Pane {pane_id} is eligible for auto-update (stale, not ahead, no agent)")
+            # Trigger update asynchronously to not block the orchestration response
+            asyncio.create_task(auto_update_pane(pane_id))
     
     return OrchestrationState(panes=panes)
 
@@ -164,6 +174,29 @@ async def stream_agent_output(pane_id: int):
             "X-Accel-Buffering": "no"
         }
     )
+
+
+@app.post("/api/panes/{pane_id}/update")
+async def update_pane(pane_id: int):
+    """
+    Update a pane's branch by pulling and merging latest main.
+    """
+    logger.info(f"[API] Received update request for pane {pane_id}")
+    
+    if pane_id < 1 or pane_id > 6:
+        raise HTTPException(status_code=400, detail="Pane ID must be between 1 and 6")
+    
+    # Check if pane has an agent running
+    if agent_manager.is_agent_running(pane_id):
+        logger.warning(f"[API] Cannot update pane {pane_id} - agent is running")
+        raise HTTPException(status_code=400, detail="Cannot update while agent is running")
+    
+    result = git_ops.update_pane_branch(pane_id)
+    
+    if result["status"] == "error":
+        raise HTTPException(status_code=500, detail=result["message"])
+    
+    return result
 
 
 @app.post("/api/panes/{pane_id}/merge")
@@ -214,6 +247,22 @@ async def get_merge_queue():
     }
 
 
+async def auto_update_pane(pane_id: int):
+    """
+    Automatically update a pane by merging latest main into its branch.
+    """
+    try:
+        logger.info(f"[AUTO-UPDATE] Starting auto-update for pane {pane_id}")
+        result = git_ops.update_pane_branch(pane_id)
+        
+        if result["status"] == "error":
+            logger.error(f"[AUTO-UPDATE] Update failed for pane {pane_id}: {result['message']}")
+        else:
+            logger.info(f"[AUTO-UPDATE] Update successful for pane {pane_id}: {result['message']}")
+    except Exception as e:
+        logger.error(f"[AUTO-UPDATE] Exception during update for pane {pane_id}: {e}", exc_info=True)
+
+
 async def process_merge_queue():
     """
     Process merge queue sequentially.
@@ -244,9 +293,7 @@ async def process_merge_queue():
             # Remove from queue
             merge_queue.pop(0)
             logger.info(f"[MERGE QUEUE] Removed pane {pane_id} from queue, remaining: {len(merge_queue)}")
-            
-            # Small delay between merges
-            await asyncio.sleep(1)
+            await asyncio.sleep(0.2)
     
     finally:
         merge_in_progress = False

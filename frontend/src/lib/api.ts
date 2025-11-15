@@ -103,6 +103,22 @@ class ApiClient {
 
     return response.json();
   }
+
+  async updatePane(paneId: number): Promise<{ status: string; message: string }> {
+    const response = await fetch(`${this.baseUrl}/api/panes/${paneId}/update`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || "Failed to update pane");
+    }
+
+    return response.json();
+  }
 }
 
 export const apiClient = new ApiClient(API_URL);

@@ -223,6 +223,61 @@ class GitOperations:
                 "message": f"Error: {str(e)}"
             }
     
+    def update_pane_branch(self, pane_id: int) -> Dict[str, str]:
+        """
+        Update a pane's branch by pulling latest main and merging it:
+        1. Fetch latest from origin
+        2. Merge origin/main into current branch
+        
+        Returns status dict.
+        """
+        pane_path = self.get_pane_path(pane_id)
+        
+        try:
+            repo = Repo(pane_path)
+            current_branch = repo.active_branch.name
+            logger.info(f"[Pane {pane_id}] [cwd: {pane_path}] [branch: {current_branch}] Starting branch update")
+            
+            if current_branch == "main":
+                logger.error(f"[Pane {pane_id}] [cwd: {pane_path}] [branch: {current_branch}] Cannot update main branch")
+                return {
+                    "status": "error",
+                    "message": "Cannot update main branch"
+                }
+            
+            # Fetch latest from origin
+            logger.info(f"[Pane {pane_id}] [cwd: {pane_path}] [branch: {current_branch}] Running: git fetch origin")
+            origin = repo.remote('origin')
+            origin.fetch()
+            logger.info(f"[Pane {pane_id}] [cwd: {pane_path}] [branch: {current_branch}] Fetch completed")
+            
+            # Merge origin/main into current branch
+            logger.info(f"[Pane {pane_id}] [cwd: {pane_path}] [branch: {current_branch}] Running: git merge origin/main")
+            merge_result = repo.git.merge('origin/main', '--no-edit')
+            logger.info(f"[Pane {pane_id}] [cwd: {pane_path}] [branch: {current_branch}] Merge result: {merge_result}")
+            
+            logger.info(f"[Pane {pane_id}] [cwd: {pane_path}] [branch: {current_branch}] Successfully updated branch with latest from main")
+            return {
+                "status": "success",
+                "message": f"Successfully updated {current_branch} with latest from main"
+            }
+        except GitCommandError as e:
+            current_branch = repo.active_branch.name if repo else "unknown"
+            logger.error(f"[Pane {pane_id}] [cwd: {pane_path}] [branch: {current_branch}] Git command error during update: {str(e)}")
+            logger.error(f"[Pane {pane_id}] [cwd: {pane_path}] [branch: {current_branch}] Git error stderr: {e.stderr if hasattr(e, 'stderr') else 'N/A'}")
+            logger.error(f"[Pane {pane_id}] [cwd: {pane_path}] [branch: {current_branch}] Git error stdout: {e.stdout if hasattr(e, 'stdout') else 'N/A'}")
+            return {
+                "status": "error",
+                "message": f"Git error: {str(e)}"
+            }
+        except Exception as e:
+            current_branch = repo.active_branch.name if repo else "unknown"
+            logger.error(f"[Pane {pane_id}] [cwd: {pane_path}] [branch: {current_branch}] Unexpected error during update: {str(e)}")
+            return {
+                "status": "error",
+                "message": f"Error: {str(e)}"
+            }
+    
     def merge_pane(self, pane_id: int) -> Dict[str, str]:
         """
         Merge a pane's branch into main:
