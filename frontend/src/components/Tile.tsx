@@ -5,6 +5,17 @@ import { FloatingWindow } from "./FloatingWindow";
 import { GitMerge } from "lucide-react";
 import type { Pane } from "@/types";
 
+const PANE_LABELS = ["apricot", "banana", "cucumber", "dragonfruit", "eggplant", "fennel"];
+
+const PANE_COLORS: Record<string, string> = {
+  apricot: "bg-orange-500/60",
+  banana: "bg-yellow-500/60",
+  cucumber: "bg-green-300/60",
+  dragonfruit: "bg-pink-500/60",
+  eggplant: "bg-purple-600/60",
+  fennel: "bg-green-500/60",
+};
+
 interface TileProps {
   pane: Pane;
   onMerge: (paneId: number) => void;
@@ -20,13 +31,15 @@ export function Tile({ pane, onMerge, onTitleChange }: TileProps) {
   };
 
   const iframeUrl = `http://localhost:300${pane.pane_id}`;
+  const paneLabel = PANE_LABELS[pane.pane_id - 1];
+  const paneColor = PANE_COLORS[paneLabel];
 
   return (
     <div className="relative w-full h-full bg-background border rounded-lg overflow-hidden">
       {/* Status badges */}
-      <div className="absolute top-2 left-2 z-10 flex gap-2">
-        <Badge variant="secondary" className="text-xs">
-          Pane {pane.pane_id}
+      <div className="absolute bottom-2 left-2 z-10 flex gap-2">
+        <Badge className={`text-xs text-white border-0 ${paneColor}`}>
+          {paneLabel}
         </Badge>
         {pane.is_ahead && (
           <Badge variant="default" className="text-xs bg-blue-600">
@@ -70,7 +83,7 @@ export function Tile({ pane, onMerge, onTitleChange }: TileProps) {
       <iframe
         src={iframeUrl}
         className="w-full h-full border-0"
-        title={`Pane ${pane.pane_id}`}
+        title={`${paneLabel} pane`}
         sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
       />
 
