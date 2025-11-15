@@ -1,0 +1,39 @@
+import { Tile } from "./Tile";
+import type { Pane } from "@/types";
+
+interface TileGridProps {
+  panes: Pane[];
+  onMerge: (paneId: number) => void;
+  onTitleChange: (paneId: number, title: string) => void;
+}
+
+export function TileGrid({ panes, onMerge, onTitleChange }: TileGridProps) {
+  const activePanes = panes.filter((p) => p.active);
+  const count = activePanes.length;
+
+  // Determine grid layout based on number of active panes
+  let gridClass = "";
+  if (count === 1) {
+    gridClass = "grid-cols-1 grid-rows-1";
+  } else if (count === 2) {
+    gridClass = "grid-cols-2 grid-rows-1";
+  } else if (count === 3 || count === 4) {
+    gridClass = "grid-cols-2 grid-rows-2";
+  } else if (count === 5 || count === 6) {
+    gridClass = "grid-cols-3 grid-rows-2";
+  }
+
+  return (
+    <div className={`w-full h-full grid ${gridClass} gap-0`}>
+      {activePanes.map((pane) => (
+        <Tile
+          key={pane.pane_id}
+          pane={pane}
+          onMerge={onMerge}
+          onTitleChange={onTitleChange}
+        />
+      ))}
+    </div>
+  );
+}
+
