@@ -10,6 +10,7 @@ function App() {
   const [panes, setPanes] = useState<Pane[]>([]);
   const [mergeQueue, setMergeQueue] = useState<MergeQueueItem[]>([]);
   const [isMerging, setIsMerging] = useState(false);
+  const [panesBeingKept, setPanesBeingKept] = useState<Set<number>>(new Set());
 
   // Update panes when orchestration state changes
   useEffect(() => {
@@ -79,12 +80,22 @@ function App() {
     try {
       await apiClient.deletePane(paneId);
       console.log(`Discarded pane ${paneId}`);
+
+      // Remove from tracking set in case pane was in keep operation
+      setPanesBeingKept((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(paneId);
+        return newSet;
+      });
     } catch (err) {
       console.error(`Failed to discard pane ${paneId}:`, err);
     }
   };
 
   const handleKeep = async (paneId: number) => {
+    // Add pane to tracking set to keep it visible during the keep operation
+    setPanesBeingKept((prev) => new Set(prev).add(paneId));
+
     try {
       // Add to merge queue - let processMergeQueue handle the actual merge
       if (!mergeQueue.some((m) => m.pane_id === paneId)) {
@@ -121,6 +132,13 @@ function App() {
       await waitForMerge();
     } catch (err) {
       console.error(`Failed to keep pane ${paneId}:`, err);
+    } finally {
+      // Remove pane from tracking set once keep operation is complete
+      setPanesBeingKept((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(paneId);
+        return newSet;
+      });
     }
   };
 
@@ -128,7 +146,7 @@ function App() {
     setPanes((prev) => prev.map((p) => (p.pane_id === paneId ? { ...p, title } : p)));
   };
 
-  const activePanes = panes.filter((p) => p.active);
+  const activePanes = panes.filter((p) => p.active || panesBeingKept.has(p.pane_id));
 
   if (isLoading) {
     return (
@@ -153,7 +171,6 @@ function App() {
     <div className="w-full h-full relative">
       <TileGrid
         panes={activePanes}
-        onMerge={handleMerge}
         onTitleChange={handleTitleChange}
         onDiscard={handleDiscard}
         onKeep={handleKeep}

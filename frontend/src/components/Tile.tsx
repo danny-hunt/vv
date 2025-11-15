@@ -18,14 +18,13 @@ const PANE_COLORS: Record<string, string> = {
 
 interface TileProps {
   pane: Pane;
-  onMerge: (paneId: number) => void;
   onTitleChange: (paneId: number, title: string) => void;
   onDiscard: (paneId: number) => void;
   onKeep: (paneId: number) => void;
   isInMergeQueue: boolean;
 }
 
-export function Tile({ pane, onMerge, onTitleChange, onDiscard, onKeep, isInMergeQueue }: TileProps) {
+export function Tile({ pane, onTitleChange, onDiscard, onKeep, isInMergeQueue }: TileProps) {
   const [title, setTitle] = useState(pane.title);
 
   const handleTitleGenerated = (newTitle: string) => {
@@ -58,16 +57,6 @@ export function Tile({ pane, onMerge, onTitleChange, onDiscard, onKeep, isInMerg
           </Badge>
         )}
       </div>
-
-      {/* Merge button */}
-      {pane.is_ahead && !pane.agent_running && (
-        <div className="absolute top-2 left-1/2 -translate-x-1/2 z-10">
-          <Button size="sm" onClick={() => onMerge(pane.pane_id)} className="shadow-lg">
-            <GitMerge className="h-4 w-4 mr-2" />
-            Merge
-          </Button>
-        </div>
-      )}
 
       {/* Discard and Keep buttons */}
       {pane.active && !pane.agent_running && !isInMergeQueue && (
