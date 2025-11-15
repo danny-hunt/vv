@@ -11,7 +11,8 @@ function App() {
   const [panes, setPanes] = useState<Pane[]>([]);
   const [mergeQueue, setMergeQueue] = useState<MergeQueueItem[]>([]);
   const [isMerging, setIsMerging] = useState(false);
-  const [panesBeingKept, setPanesBeingKept] = useState<Set<number>>(new Set());
+  const [visiblePanes, setVisiblePanes] = useState<Set<number>>(new Set());
+  const [isCreatingPane, setIsCreatingPane] = useState(false);
 
   // Update panes when orchestration state changes
   useEffect(() => {
@@ -49,8 +50,8 @@ function App() {
   };
 
   const handleAddPane = async () => {
-    // Find the first inactive pane
-    const inactivePaneIds = panes.filter((p) => !p.active).map((p) => p.pane_id);
+    // Find the first inactive pane that's not already visible
+    const inactivePaneIds = panes.filter((p) => !visiblePanes.has(p.pane_id)).map((p) => p.pane_id);
 
     if (inactivePaneIds.length === 0) {
       console.error("No available panes");
@@ -59,11 +60,16 @@ function App() {
 
     const paneId = inactivePaneIds[0];
 
+    setIsCreatingPane(true);
     try {
       await apiClient.createPane(paneId);
       console.log(`Created pane ${paneId}`);
+      // Add to visible panes immediately
+      setVisiblePanes((prev) => new Set(prev).add(paneId));
     } catch (err) {
       console.error(`Failed to create pane ${paneId}:`, err);
+    } finally {
+      setIsCreatingPane(false);
     }
   };
 
@@ -75,25 +81,23 @@ function App() {
   };
 
   const handleDiscard = async (paneId: number) => {
+    // Remove from visible panes immediately (don't wait for backend)
+    setVisiblePanes((prev) => {
+      const newSet = new Set(prev);
+      newSet.delete(paneId);
+      return newSet;
+    });
+
     try {
       await apiClient.deletePane(paneId);
       console.log(`Discarded pane ${paneId}`);
-
-      // Remove from tracking set in case pane was in keep operation
-      setPanesBeingKept((prev) => {
-        const newSet = new Set(prev);
-        newSet.delete(paneId);
-        return newSet;
-      });
     } catch (err) {
       console.error(`Failed to discard pane ${paneId}:`, err);
     }
   };
 
   const handleKeep = async (paneId: number) => {
-    // Add pane to tracking set to keep it visible during the keep operation
-    setPanesBeingKept((prev) => new Set(prev).add(paneId));
-
+    // Pane stays visible throughout the operation (already in visiblePanes)
     try {
       // Add to merge queue - let processMergeQueue handle the actual merge
       if (!mergeQueue.some((m) => m.pane_id === paneId)) {
@@ -104,7 +108,7 @@ function App() {
       // Wait for merge to complete by polling the pane status
       const waitForMerge = async () => {
         let attempts = 0;
-        const maxAttempts = 100; // 60 attempts
+        const maxAttempts = 100;
 
         while (attempts < maxAttempts) {
           const state = await apiClient.getOrchestrationState();
@@ -131,13 +135,6 @@ function App() {
       await waitForMerge();
     } catch (err) {
       console.error(`Failed to keep pane ${paneId}:`, err);
-    } finally {
-      // Remove pane from tracking set once keep operation is complete
-      setPanesBeingKept((prev) => {
-        const newSet = new Set(prev);
-        newSet.delete(paneId);
-        return newSet;
-      });
     }
   };
 
@@ -145,7 +142,7 @@ function App() {
     setPanes((prev) => prev.map((p) => (p.pane_id === paneId ? { ...p, title } : p)));
   };
 
-  const activePanes = panes.filter((p) => p.active || panesBeingKept.has(p.pane_id));
+  const activePanes = panes.filter((p) => visiblePanes.has(p.pane_id));
 
   if (isLoading) {
     return (
@@ -176,7 +173,11 @@ function App() {
         mergeQueue={mergeQueue}
       />
 
-      <FloatingControls activePaneCount={activePanes.length} onAddPane={handleAddPane} />
+      <FloatingControls
+        activePaneCount={activePanes.length}
+        onAddPane={handleAddPane}
+        isCreatingPane={isCreatingPane}
+      />
 
       {/* Merge queue indicator */}
       {mergeQueue.length > 0 && (

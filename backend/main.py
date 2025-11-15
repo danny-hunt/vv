@@ -42,6 +42,9 @@ agent_manager = AgentManager(WEBAPP_BASE_PATH, git_ops=git_ops)
 merge_queue: List[int] = []
 merge_in_progress: bool = False
 
+# Global state for tracking updating panes
+updating_panes: set[int] = set()
+
 
 # Pydantic models
 class AgentRequest(BaseModel):
@@ -62,6 +65,8 @@ class PaneStatus(BaseModel):
     is_ahead: bool
     is_stale: bool
     agent_running: bool
+    is_updating: bool
+    is_merging: bool
 
 
 class OrchestrationState(BaseModel):
@@ -120,7 +125,9 @@ async def get_orchestration_state():
             branch=status.get("branch"),
             is_ahead=status.get("is_ahead", False),
             is_stale=status.get("is_stale", False),
-            agent_running=agent_running
+            agent_running=agent_running,
+            is_updating=pane_id in updating_panes,
+            is_merging=pane_id in merge_queue
         ))
         
         # Auto-update logic: if pane is stale, not ahead, and agent not running
@@ -251,6 +258,7 @@ async def auto_update_pane(pane_id: int):
     """
     Automatically update a pane by merging latest main into its branch.
     """
+    updating_panes.add(pane_id)
     try:
         logger.info(f"[AUTO-UPDATE] Starting auto-update for pane {pane_id}")
         result = git_ops.update_pane_branch(pane_id)
@@ -261,6 +269,8 @@ async def auto_update_pane(pane_id: int):
             logger.info(f"[AUTO-UPDATE] Update successful for pane {pane_id}: {result['message']}")
     except Exception as e:
         logger.error(f"[AUTO-UPDATE] Exception during update for pane {pane_id}: {e}", exc_info=True)
+    finally:
+        updating_panes.discard(pane_id)
 
 
 async def process_merge_queue():

@@ -5,6 +5,8 @@ export interface Pane {
   is_ahead: boolean;
   is_stale: boolean;
   agent_running: boolean;
+  is_updating: boolean;
+  is_merging: boolean;
   title?: string;
 }
 
@@ -32,4 +34,3 @@ export interface CreatePaneResponse {
   status: string;
   message: string;
 }
-

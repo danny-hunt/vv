@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { FloatingWindow } from "./FloatingWindow";
-import { GitMerge, Trash2, Check } from "lucide-react";
+import { Trash2, Check } from "lucide-react";
 import type { Pane } from "@/types";
 import { getPaneLabel } from "@/lib/utils";
 
@@ -35,6 +35,9 @@ export function Tile({ pane, onTitleChange, onDiscard, onKeep, isInMergeQueue }:
   const paneLabel = getPaneLabel(pane.pane_id);
   const paneColor = PANE_COLORS[paneLabel];
 
+  // Determine if user can interact with this pane
+  const canInteract = !pane.agent_running && !isInMergeQueue && !pane.is_updating && !pane.is_merging;
+
   return (
     <div className="relative w-full h-full bg-background border rounded-lg overflow-hidden">
       {/* Status badges */}
@@ -55,10 +58,20 @@ export function Tile({ pane, onTitleChange, onDiscard, onKeep, isInMergeQueue }:
             Agent Running
           </Badge>
         )}
+        {pane.is_updating && (
+          <Badge variant="secondary" className="text-xs bg-orange-600">
+            Updating
+          </Badge>
+        )}
+        {pane.is_merging && (
+          <Badge variant="secondary" className="text-xs bg-purple-600">
+            Merging
+          </Badge>
+        )}
       </div>
 
       {/* Discard and Keep buttons */}
-      {pane.active && !pane.agent_running && !isInMergeQueue && (
+      {canInteract && (
         <div className="absolute bottom-2 right-2 z-10 flex gap-2">
           <Button
             size="sm"
@@ -81,7 +94,12 @@ export function Tile({ pane, onTitleChange, onDiscard, onKeep, isInMergeQueue }:
       )}
 
       {/* Floating window for agent interaction */}
-      <FloatingWindow paneId={pane.pane_id} title={title} onTitleGenerated={handleTitleGenerated} />
+      <FloatingWindow
+        paneId={pane.pane_id}
+        title={title}
+        onTitleGenerated={handleTitleGenerated}
+        canInteract={canInteract}
+      />
 
       {/* Iframe with webapp */}
       <iframe
@@ -93,6 +111,13 @@ export function Tile({ pane, onTitleChange, onDiscard, onKeep, isInMergeQueue }:
 
       {/* Grey overlay when stale */}
       {pane.is_stale && <div className="absolute inset-0 bg-gray-500 bg-opacity-30 pointer-events-none z-0" />}
+
+      {/* Processing overlay when pane cannot be interacted with */}
+      {!canInteract && (
+        <div className="absolute inset-0 bg-black/20 z-5 flex items-center justify-center pointer-events-none">
+          <span className="text-white text-sm font-medium bg-black/50 px-4 py-2 rounded">Processing...</span>
+        </div>
+      )}
     </div>
   );
 }

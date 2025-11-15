@@ -13,9 +13,10 @@ interface FloatingWindowProps {
   paneId: number;
   title?: string;
   onTitleGenerated?: (title: string) => void;
+  canInteract: boolean;
 }
 
-export function FloatingWindow({ paneId, title, onTitleGenerated }: FloatingWindowProps) {
+export function FloatingWindow({ paneId, title, onTitleGenerated, canInteract }: FloatingWindowProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [prompt, setPrompt] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -37,7 +38,7 @@ export function FloatingWindow({ paneId, title, onTitleGenerated }: FloatingWind
   }, [messages]);
 
   const handleSubmit = async () => {
-    if (!prompt.trim() || isSubmitting || isStreaming) return;
+    if (!prompt.trim() || isSubmitting || isStreaming || !canInteract) return;
 
     setIsSubmitting(true);
 
@@ -106,16 +107,27 @@ export function FloatingWindow({ paneId, title, onTitleGenerated }: FloatingWind
 
           {/* Input area */}
           <div className="space-y-2">
+            {!canInteract && (
+              <p className="text-sm text-muted-foreground text-center py-2">
+                Pane is currently processing. Please wait...
+              </p>
+            )}
             <Textarea
-              placeholder="Describe the changes you want..."
+              placeholder={canInteract ? "Describe the changes you want..." : "Please wait..."}
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               onKeyDown={handleKeyDown}
-              disabled={isStreaming}
+              disabled={isStreaming || !canInteract}
               className="min-h-[80px] resize-none"
             />
-            <Button onClick={handleSubmit} disabled={!prompt.trim() || isSubmitting || isStreaming} className="w-full">
-              {isSubmitting ? (
+            <Button
+              onClick={handleSubmit}
+              disabled={!prompt.trim() || isSubmitting || isStreaming || !canInteract}
+              className="w-full"
+            >
+              {!canInteract ? (
+                "Processing..."
+              ) : isSubmitting ? (
                 "Starting..."
               ) : isStreaming ? (
                 "Agent Running..."
