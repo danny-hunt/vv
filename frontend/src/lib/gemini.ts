@@ -15,7 +15,7 @@ export async function generateTitle(firstPrompt: string): Promise<string> {
   }
 
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
     const prompt = `Given this user request for code changes: "${firstPrompt}"
 
@@ -42,4 +42,3 @@ Title:`;
     return words.length > 30 ? words.substring(0, 27) + "..." : words;
   }
 }
-
