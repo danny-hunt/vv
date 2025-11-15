@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { TileGrid } from "./components/TileGrid";
 import { FloatingControls } from "./components/FloatingControls";
 import { Header } from "./components/Header";
@@ -6,6 +6,7 @@ import { usePolling } from "./hooks/usePolling";
 import { apiClient } from "./lib/api";
 import { getPaneLabel } from "./lib/utils";
 import type { Pane, MergeQueueItem } from "./types";
+import { Toaster, toast } from "sonner";
 
 function App() {
   const { orchestrationState, error, isLoading } = usePolling(5000);
@@ -14,6 +15,7 @@ function App() {
   const [isMerging, setIsMerging] = useState(false);
   const [visiblePanes, setVisiblePanes] = useState<Set<number>>(new Set());
   const [isCreatingPane, setIsCreatingPane] = useState(false);
+  const previousPanesRef = useRef<Pane[]>([]);
 
   // Update panes when orchestration state changes
   useEffect(() => {
@@ -21,6 +23,28 @@ function App() {
       setPanes(orchestrationState.panes);
     }
   }, [orchestrationState]);
+
+  // Detect when a pane starts updating and show a toast
+  useEffect(() => {
+    if (panes.length === 0) return;
+
+    panes.forEach((pane) => {
+      const previousPane = previousPanesRef.current.find((p) => p.pane_id === pane.pane_id);
+
+      // Check if pane just transitioned to is_updating state
+      if (pane.is_updating && previousPane && !previousPane.is_updating) {
+        const paneLabel = getPaneLabel(pane.pane_id);
+        toast.info(`✨ ${paneLabel} is getting a refresh!`, {
+          description:
+            "Don't worry! We're just catching it up with the latest changes. Everything will sync up shortly! 🎉",
+          duration: 4000,
+        });
+      }
+    });
+
+    // Update the ref with current panes for next comparison
+    previousPanesRef.current = panes;
+  }, [panes]);
 
   // Process merge queue
   useEffect(() => {
@@ -166,6 +190,7 @@ function App() {
 
   return (
     <div className="w-full h-full flex flex-col">
+      <Toaster position="top-center" richColors />
       <Header />
 
       <div className="flex-1 relative">

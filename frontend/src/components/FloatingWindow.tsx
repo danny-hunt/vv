@@ -7,7 +7,6 @@ import { ChevronDown, ChevronUp, Send, Loader2 } from "lucide-react";
 import { useAgentStream } from "@/hooks/useAgentStream";
 import { apiClient } from "@/lib/api";
 import { generateTitle } from "@/lib/gemini";
-import { getPaneLabel } from "@/lib/utils";
 
 interface FloatingWindowProps {
   paneId: number;
@@ -74,16 +73,22 @@ export function FloatingWindow({ paneId, title, onTitleGenerated, canInteract }:
 
   return (
     <Card className="absolute top-1/2 -translate-y-1/2 right-4 w-96 shadow-lg z-10">
-      <CardHeader className="pb-3 cursor-pointer" onClick={() => setIsCollapsed(!isCollapsed)}>
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-base">{title || getPaneLabel(paneId)}</CardTitle>
-          <Button variant="ghost" size="icon" className="h-6 w-6">
-            {isCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
-          </Button>
-        </div>
-      </CardHeader>
+      {/* Only show header with title and collapse button if title exists */}
+      {title ? (
+        <CardHeader className="pb-3 cursor-pointer" onClick={() => setIsCollapsed(!isCollapsed)}>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">{title}</CardTitle>
+            <Button variant="ghost" size="icon" className="h-6 w-6">
+              {isCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+            </Button>
+          </div>
+        </CardHeader>
+      ) : (
+        <div className="space-y-3 pb-5"></div>
+      )}
 
-      {!isCollapsed && (
+      {/* Show content if no title exists OR if title exists and not collapsed */}
+      {(!title || !isCollapsed) && (
         <CardContent className="space-y-3">
           {/* Message history */}
           {!(messages.length === 0 && !isStreaming) && (
