@@ -143,6 +143,7 @@ create_pane_branch(pane_id)  # Create tmp-{id}-{uuid6} branch
 get_branch_status(pane_id)   # Get current git state
 is_ahead(pane_id)            # Check if ahead of main
 is_stale(pane_id)            # Check if behind main
+commit_changes(pane_id, msg) # Stage and commit all changes
 merge_pane(pane_id)          # Merge to main and push
 ```
 
@@ -151,6 +152,7 @@ merge_pane(pane_id)          # Merge to main and push
 - Process management
 - Output streaming
 - Lifecycle tracking
+- Automatic git commits after completion
 
 **Key Functions:**
 ```python
@@ -158,6 +160,7 @@ start_agent(pane_id, prompt)      # Start subprocess
 stream_agent_output(pane_id)      # Yield output lines
 is_agent_running(pane_id)         # Check status
 stop_agent(pane_id)               # Terminate process
+_read_agent_output(pane_id, proc) # Read output and auto-commit on completion
 ```
 
 ## Data Flow
@@ -204,6 +207,9 @@ stop_agent(pane_id)               # Terminate process
 7. Output displayed in FloatingWindow
    ↓
 8. On completion:
+   - Automatically stage all changes (git add -A)
+   - Commit changes with message "Agent changes"
+   - Display commit status in output stream
    - Close SSE connection
    - Update agent_running = false
    - Polling detects "ahead" status

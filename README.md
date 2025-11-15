@@ -7,6 +7,7 @@ VV is a UI-first development tool that allows you to run and view multiple versi
 - 🎯 **Tiled View**: Display up to 6 versions of your webapp in a responsive grid layout
 - 🔄 **Git Orchestration**: Automatic branch management for each pane
 - 🤖 **AI-Powered Changes**: Request code changes using cursor-agent CLI
+- 💾 **Auto-Commit**: Automatically stage and commit all changes after agent completes
 - 📊 **Status Tracking**: Visual indicators for ahead/stale branches
 - 🔀 **Smart Merging**: Sequential merge queue with automatic conflict handling
 - 💬 **Interactive UI**: Collapsible floating windows for each pane
@@ -121,6 +122,7 @@ Ensure you have 6 clones of your webapp in folders named `1`, `2`, `3`, `4`, `5`
    - Type your request and press Enter or click Submit
    - The first request will generate an AI title for the pane
    - Agent responses will stream in real-time
+   - All changes are automatically staged and committed when the agent completes
 
 4. **Merge Changes**: Click the "Merge" button on panes marked as "Ahead"
 

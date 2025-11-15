@@ -36,7 +36,7 @@ WEBAPP_BASE_PATH = os.getenv("WEBAPP_BASE_PATH", "/Users/danny/src/vv")
 
 # Initialize managers
 git_ops = GitOperations(WEBAPP_BASE_PATH)
-agent_manager = AgentManager(WEBAPP_BASE_PATH)
+agent_manager = AgentManager(WEBAPP_BASE_PATH, git_ops=git_ops)
 
 # Global state for merge queue
 merge_queue: List[int] = []

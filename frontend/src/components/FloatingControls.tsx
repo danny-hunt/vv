@@ -8,24 +8,15 @@ interface FloatingControlsProps {
   canRemove: boolean;
 }
 
-export function FloatingControls({
-  activePaneCount,
-  onAddPane,
-  onRemovePane,
-  canRemove,
-}: FloatingControlsProps) {
+export function FloatingControls({ activePaneCount, onAddPane, onRemovePane, canRemove }: FloatingControlsProps) {
   const canAdd = activePaneCount < 6;
   const showRemove = activePaneCount > 1;
 
   return (
     <div className="fixed bottom-6 left-6 flex gap-3 z-50">
       {canAdd && (
-        <Button
-          size="lg"
-          onClick={onAddPane}
-          className="rounded-full w-14 h-14 shadow-lg"
-        >
-          <Plus className="h-6 w-6" />
+        <Button onClick={onAddPane} className="rounded-full w-14 h-14 shadow-lg flex items-center justify-center">
+          <Plus className="h-6 w-6" style={{ color: "var(--primary-foreground)" }} />
         </Button>
       )}
 
@@ -43,4 +34,3 @@ export function FloatingControls({
     </div>
   );
 }
-

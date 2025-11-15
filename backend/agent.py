@@ -1,17 +1,21 @@
 import asyncio
 import subprocess
 from pathlib import Path
-from typing import Dict, AsyncIterator, Optional
+from typing import Dict, AsyncIterator, Optional, TYPE_CHECKING
 import logging
+
+if TYPE_CHECKING:
+    from git_ops import GitOperations
 
 logger = logging.getLogger(__name__)
 
 
 class AgentManager:
-    def __init__(self, base_path: str):
+    def __init__(self, base_path: str, git_ops: Optional['GitOperations'] = None):
         self.base_path = Path(base_path)
         self.running_agents: Dict[int, asyncio.subprocess.Process] = {}
         self.agent_outputs: Dict[int, asyncio.Queue] = {}
+        self.git_ops = git_ops
     
     def get_pane_path(self, pane_id: int) -> Path:
         """Get the path to a pane's webapp directory."""
@@ -83,6 +87,7 @@ class AgentManager:
     async def _read_agent_output(self, pane_id: int, process: asyncio.subprocess.Process):
         """
         Read output from the agent process and add to queue.
+        After the agent completes, automatically stage and commit all changes.
         """
         try:
             while True:
@@ -95,6 +100,32 @@ class AgentManager:
             
             # Wait for process to complete
             await process.wait()
+            
+            # After agent completes, auto-commit changes
+            if self.git_ops is not None:
+                logger.info(f"Agent completed for pane {pane_id}, staging and committing changes...")
+                
+                try:
+                    # Run git operations in executor to avoid blocking
+                    loop = asyncio.get_event_loop()
+                    result = await loop.run_in_executor(
+                        None, 
+                        self.git_ops.commit_changes, 
+                        pane_id,
+                        "Agent changes"
+                    )
+                    
+                    if result["status"] == "success":
+                        logger.info(f"Successfully committed changes for pane {pane_id}: {result['message']}")
+                        await self.agent_outputs[pane_id].put(f"\n✓ {result['message']}")
+                    else:
+                        logger.warning(f"Commit returned status for pane {pane_id}: {result['message']}")
+                        # Don't add to output queue if no changes
+                        if "No changes to commit" not in result["message"]:
+                            await self.agent_outputs[pane_id].put(f"\n⚠ Commit status: {result['message']}")
+                except Exception as commit_error:
+                    logger.error(f"Error committing changes for pane {pane_id}: {commit_error}")
+                    await self.agent_outputs[pane_id].put(f"\n✗ Error committing changes: {str(commit_error)}")
             
             # Signal end of output
             await self.agent_outputs[pane_id].put(None)

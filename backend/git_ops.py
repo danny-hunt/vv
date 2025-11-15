@@ -146,6 +146,51 @@ class GitOperations:
         except Exception:
             return False
     
+    def commit_changes(self, pane_id: int, message: str = "Agent changes") -> Dict[str, str]:
+        """
+        Stage and commit all changes in the pane's working directory.
+        
+        Args:
+            pane_id: The pane ID
+            message: Commit message (default: "Agent changes")
+        
+        Returns:
+            Dict with status and message
+        """
+        pane_path = self.get_pane_path(pane_id)
+        
+        try:
+            repo = Repo(pane_path)
+            
+            # Check if there are any changes to commit
+            if not repo.is_dirty(untracked_files=True):
+                return {
+                    "status": "success",
+                    "message": "No changes to commit"
+                }
+            
+            # Stage all changes (tracked and untracked)
+            repo.git.add(A=True)
+            
+            # Commit the changes
+            commit = repo.index.commit(message)
+            
+            return {
+                "status": "success",
+                "message": f"Committed changes: {commit.hexsha[:7]}",
+                "commit_sha": commit.hexsha
+            }
+        except GitCommandError as e:
+            return {
+                "status": "error",
+                "message": f"Git error: {str(e)}"
+            }
+        except Exception as e:
+            return {
+                "status": "error",
+                "message": f"Error: {str(e)}"
+            }
+    
     def merge_pane(self, pane_id: int) -> Dict[str, str]:
         """
         Merge a pane's branch into main:
