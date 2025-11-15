@@ -71,17 +71,11 @@ export function FloatingWindow({ paneId, title, onTitleGenerated }: FloatingWind
   };
 
   return (
-    <Card className="absolute top-4 right-4 w-96 shadow-lg z-10">
+    <Card className="absolute top-1/2 -translate-y-1/2 right-4 w-96 shadow-lg z-10">
       <CardHeader className="pb-3 cursor-pointer" onClick={() => setIsCollapsed(!isCollapsed)}>
         <div className="flex items-center justify-between">
-          <CardTitle className="text-base">
-            {title || `Pane ${paneId}`}
-          </CardTitle>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6"
-          >
+          <CardTitle className="text-base">{title || `Pane ${paneId}`}</CardTitle>
+          <Button variant="ghost" size="icon" className="h-6 w-6">
             {isCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
           </Button>
         </div>
@@ -93,9 +87,7 @@ export function FloatingWindow({ paneId, title, onTitleGenerated }: FloatingWind
           <ScrollArea className="h-48 w-full rounded border p-3 bg-muted/30">
             <div ref={scrollRef} className="space-y-2">
               {messages.length === 0 && !isStreaming && (
-                <p className="text-sm text-muted-foreground text-center py-8">
-                  No messages yet. Enter a prompt below.
-                </p>
+                <p className="text-sm text-muted-foreground text-center py-8">No messages yet. Enter a prompt below.</p>
               )}
               {messages.map((message, index) => (
                 <div key={index} className="text-sm">
@@ -105,9 +97,7 @@ export function FloatingWindow({ paneId, title, onTitleGenerated }: FloatingWind
               {isStreaming && messages.length === 0 && (
                 <p className="text-sm text-muted-foreground">Agent is running...</p>
               )}
-              {error && (
-                <p className="text-sm text-destructive">Error: {error}</p>
-              )}
+              {error && <p className="text-sm text-destructive">Error: {error}</p>}
             </div>
           </ScrollArea>
 
@@ -121,11 +111,7 @@ export function FloatingWindow({ paneId, title, onTitleGenerated }: FloatingWind
               disabled={isStreaming}
               className="min-h-[80px] resize-none"
             />
-            <Button
-              onClick={handleSubmit}
-              disabled={!prompt.trim() || isSubmitting || isStreaming}
-              className="w-full"
-            >
+            <Button onClick={handleSubmit} disabled={!prompt.trim() || isSubmitting || isStreaming} className="w-full">
               {isSubmitting ? (
                 "Starting..."
               ) : isStreaming ? (
@@ -143,4 +129,3 @@ export function FloatingWindow({ paneId, title, onTitleGenerated }: FloatingWind
     </Card>
   );
 }
-
