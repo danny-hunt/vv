@@ -172,20 +172,29 @@ async def merge_pane(pane_id: int):
     Merge a pane's branch into main.
     Adds to queue for sequential processing.
     """
+    logger.info(f"[API] Received merge request for pane {pane_id}")
+    
     if pane_id < 1 or pane_id > 6:
         raise HTTPException(status_code=400, detail="Pane ID must be between 1 and 6")
     
     # Check if pane has an agent running
     if agent_manager.is_agent_running(pane_id):
+        logger.warning(f"[API] Cannot merge pane {pane_id} - agent is running")
         raise HTTPException(status_code=400, detail="Cannot merge while agent is running")
     
     # Add to merge queue
     if pane_id not in merge_queue:
         merge_queue.append(pane_id)
+        logger.info(f"[API] Added pane {pane_id} to merge queue at position {merge_queue.index(pane_id)}, queue: {merge_queue}")
         
         # Start processing if not already in progress
         if not merge_in_progress:
+            logger.info(f"[API] Starting merge queue processing")
             asyncio.create_task(process_merge_queue())
+        else:
+            logger.info(f"[API] Merge already in progress, pane {pane_id} queued")
+    else:
+        logger.warning(f"[API] Pane {pane_id} already in merge queue")
     
     return {
         "status": "queued",
@@ -217,27 +226,31 @@ async def process_merge_queue():
         while merge_queue:
             pane_id = merge_queue[0]
             
-            logger.info(f"Processing merge for pane {pane_id}")
+            logger.info(f"[MERGE QUEUE] Processing merge for pane {pane_id}, queue length: {len(merge_queue)}")
             
             try:
                 result = git_ops.merge_pane(pane_id)
                 
+                logger.info(f"[MERGE QUEUE] Merge result for pane {pane_id}: status={result['status']}, message={result['message']}")
+                
                 if result["status"] == "error":
-                    logger.error(f"Merge failed for pane {pane_id}: {result['message']}")
+                    logger.error(f"[MERGE QUEUE] Merge failed for pane {pane_id}: {result['message']}")
                 else:
-                    logger.info(f"Merge successful for pane {pane_id}")
+                    logger.info(f"[MERGE QUEUE] Merge successful for pane {pane_id}: {result['message']}")
                 
             except Exception as e:
-                logger.error(f"Exception during merge for pane {pane_id}: {e}")
+                logger.error(f"[MERGE QUEUE] Exception during merge for pane {pane_id}: {e}", exc_info=True)
             
             # Remove from queue
             merge_queue.pop(0)
+            logger.info(f"[MERGE QUEUE] Removed pane {pane_id} from queue, remaining: {len(merge_queue)}")
             
             # Small delay between merges
             await asyncio.sleep(1)
     
     finally:
         merge_in_progress = False
+        logger.info(f"[MERGE QUEUE] Merge queue processing completed")
 
 
 @app.delete("/api/panes/{pane_id}")

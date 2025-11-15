@@ -86,13 +86,10 @@ function App() {
 
   const handleKeep = async (paneId: number) => {
     try {
-      // First, merge the pane
-      await apiClient.mergePane(paneId);
-      console.log(`Keeping pane ${paneId} - added to merge queue`);
-
-      // Add to merge queue for UI tracking
+      // Add to merge queue - let processMergeQueue handle the actual merge
       if (!mergeQueue.some((m) => m.pane_id === paneId)) {
         setMergeQueue((prev) => [...prev, { pane_id: paneId, status: "queued" }]);
+        console.log(`Keeping pane ${paneId} - added to merge queue`);
       }
 
       // Wait for merge to complete by polling the pane status
