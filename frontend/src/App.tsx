@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { TileGrid } from "./components/TileGrid";
 import { FloatingControls } from "./components/FloatingControls";
+import { Header } from "./components/Header";
 import { usePolling } from "./hooks/usePolling";
 import { apiClient } from "./lib/api";
 import { getPaneLabel } from "./lib/utils";
@@ -164,34 +165,38 @@ function App() {
   }
 
   return (
-    <div className="w-full h-full relative">
-      <TileGrid
-        panes={activePanes}
-        onTitleChange={handleTitleChange}
-        onDiscard={handleDiscard}
-        onKeep={handleKeep}
-        mergeQueue={mergeQueue}
-      />
+    <div className="w-full h-full flex flex-col">
+      <Header />
 
-      <FloatingControls
-        activePaneCount={activePanes.length}
-        onAddPane={handleAddPane}
-        isCreatingPane={isCreatingPane}
-      />
+      <div className="flex-1 relative">
+        <TileGrid
+          panes={activePanes}
+          onTitleChange={handleTitleChange}
+          onDiscard={handleDiscard}
+          onKeep={handleKeep}
+          mergeQueue={mergeQueue}
+        />
 
-      {/* Merge queue indicator */}
-      {mergeQueue.length > 0 && (
-        <div className="fixed bottom-6 right-6 bg-card border rounded-lg p-4 shadow-lg z-50">
-          <h3 className="text-sm font-semibold mb-2">Merge Queue</h3>
-          <div className="space-y-1">
-            {mergeQueue.map((item, index) => (
-              <div key={item.pane_id} className="text-xs text-muted-foreground">
-                {index === 0 && isMerging ? "⏳" : "⏸️"} {getPaneLabel(item.pane_id)}
-              </div>
-            ))}
+        <FloatingControls
+          activePaneCount={activePanes.length}
+          onAddPane={handleAddPane}
+          isCreatingPane={isCreatingPane}
+        />
+
+        {/* Merge queue indicator */}
+        {mergeQueue.length > 0 && (
+          <div className="fixed bottom-6 right-6 bg-card border rounded-lg p-4 shadow-lg z-50">
+            <h3 className="text-sm font-semibold mb-2">Merge Queue</h3>
+            <div className="space-y-1">
+              {mergeQueue.map((item, index) => (
+                <div key={item.pane_id} className="text-xs text-muted-foreground">
+                  {index === 0 && isMerging ? "⏳" : "⏸️"} {getPaneLabel(item.pane_id)}
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

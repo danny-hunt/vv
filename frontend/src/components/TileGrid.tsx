@@ -10,10 +10,9 @@ interface TileGridProps {
 }
 
 export function TileGrid({ panes, onTitleChange, onDiscard, onKeep, mergeQueue }: TileGridProps) {
-  const activePanes = panes.filter((p) => p.active);
-  const count = activePanes.length;
+  const count = panes.length;
 
-  // Determine grid layout based on number of active panes
+  // Determine grid layout based on number of panes
   let gridClass = "";
   if (count === 1) {
     gridClass = "grid-cols-1 grid-rows-1";
@@ -27,7 +26,7 @@ export function TileGrid({ panes, onTitleChange, onDiscard, onKeep, mergeQueue }
 
   return (
     <div className={`w-full h-full grid ${gridClass} gap-0`}>
-      {activePanes.map((pane) => (
+      {panes.map((pane) => (
         <Tile
           key={pane.pane_id}
           pane={pane}

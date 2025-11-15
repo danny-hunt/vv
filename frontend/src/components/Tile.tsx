@@ -82,14 +82,16 @@ export function Tile({ pane, onTitleChange, onDiscard, onKeep, isInMergeQueue }:
           >
             <Trash2 className="h-4 w-4" />
           </Button>
-          <Button
-            size="sm"
-            onClick={() => onKeep(pane.pane_id)}
-            className="shadow-lg bg-green-600 hover:bg-green-700"
-            title="Keep changes (merge to main and start new branch)"
-          >
-            <Check className="h-4 w-4" />
-          </Button>
+          {pane.is_ahead && (
+            <Button
+              size="sm"
+              onClick={() => onKeep(pane.pane_id)}
+              className="shadow-lg bg-green-600 hover:bg-green-700"
+              title="Keep changes (merge to main and start new branch)"
+            >
+              <Check className="h-4 w-4" />
+            </Button>
+          )}
         </div>
       )}
 
