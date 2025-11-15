@@ -7,6 +7,7 @@ import { ChevronDown, ChevronUp, Send } from "lucide-react";
 import { useAgentStream } from "@/hooks/useAgentStream";
 import { apiClient } from "@/lib/api";
 import { generateTitle } from "@/lib/gemini";
+import { getPaneLabel } from "@/lib/utils";
 
 interface FloatingWindowProps {
   paneId: number;
@@ -43,7 +44,7 @@ export function FloatingWindow({ paneId, title, onTitleGenerated }: FloatingWind
     try {
       // If this is the first prompt, generate a title
       if (!hasSubmitted && onTitleGenerated) {
-        const generatedTitle = await generateTitle(prompt);
+        const generatedTitle = await generateTitle(prompt, paneId);
         onTitleGenerated(generatedTitle);
         setHasSubmitted(true);
       }
@@ -74,7 +75,7 @@ export function FloatingWindow({ paneId, title, onTitleGenerated }: FloatingWind
     <Card className="absolute top-1/2 -translate-y-1/2 right-4 w-96 shadow-lg z-10">
       <CardHeader className="pb-3 cursor-pointer" onClick={() => setIsCollapsed(!isCollapsed)}>
         <div className="flex items-center justify-between">
-          <CardTitle className="text-base">{title || `Pane ${paneId}`}</CardTitle>
+          <CardTitle className="text-base">{title || getPaneLabel(paneId)}</CardTitle>
           <Button variant="ghost" size="icon" className="h-6 w-6">
             {isCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
           </Button>

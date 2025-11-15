@@ -3,6 +3,7 @@ import { TileGrid } from "./components/TileGrid";
 import { FloatingControls } from "./components/FloatingControls";
 import { usePolling } from "./hooks/usePolling";
 import { apiClient } from "./lib/api";
+import { getPaneLabel } from "./lib/utils";
 import type { Pane, MergeQueueItem } from "./types";
 
 function App() {
@@ -186,7 +187,7 @@ function App() {
           <div className="space-y-1">
             {mergeQueue.map((item, index) => (
               <div key={item.pane_id} className="text-xs text-muted-foreground">
-                {index === 0 && isMerging ? "⏳" : "⏸️"} Pane {item.pane_id}
+                {index === 0 && isMerging ? "⏳" : "⏸️"} {getPaneLabel(item.pane_id)}
               </div>
             ))}
           </div>

@@ -4,8 +4,7 @@ import { Button } from "./ui/button";
 import { FloatingWindow } from "./FloatingWindow";
 import { GitMerge, Trash2, Check } from "lucide-react";
 import type { Pane } from "@/types";
-
-const PANE_LABELS = ["apricot", "banana", "cucumber", "dragonfruit", "eggplant", "fennel"];
+import { getPaneLabel } from "@/lib/utils";
 
 const PANE_COLORS: Record<string, string> = {
   apricot: "bg-orange-500/60",
@@ -33,7 +32,7 @@ export function Tile({ pane, onTitleChange, onDiscard, onKeep, isInMergeQueue }:
   };
 
   const iframeUrl = `http://localhost:300${pane.pane_id}`;
-  const paneLabel = PANE_LABELS[pane.pane_id - 1];
+  const paneLabel = getPaneLabel(pane.pane_id);
   const paneColor = PANE_COLORS[paneLabel];
 
   return (

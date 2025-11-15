@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { getPaneLabel } from "./utils";
 
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
@@ -8,10 +9,11 @@ if (API_KEY) {
   genAI = new GoogleGenerativeAI(API_KEY);
 }
 
-export async function generateTitle(firstPrompt: string): Promise<string> {
+export async function generateTitle(firstPrompt: string, paneId?: number): Promise<string> {
   if (!genAI) {
     console.warn("Gemini API key not configured, using default title");
-    return `Pane ${Date.now().toString().slice(-4)}`;
+    const paneLabel = paneId ? getPaneLabel(paneId) : "pane";
+    return `${paneLabel} ${Date.now().toString().slice(-4)}`;
   }
 
   try {
