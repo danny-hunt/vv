@@ -1,10 +1,11 @@
-import os
 import uuid
 import logging
 from pathlib import Path
-from typing import Dict, Optional
-import git
+from typing import Dict, Optional, TYPE_CHECKING
 from git import Repo, GitCommandError
+
+if TYPE_CHECKING:
+    from agent import AgentManager
 
 logger = logging.getLogger(__name__)
 
@@ -278,6 +279,100 @@ class GitOperations:
                 "message": f"Error: {str(e)}"
             }
     
+    def get_conflicted_files(self, pane_id: int, repo: Optional[Repo] = None) -> list[str]:
+        """
+        Get list of files with merge conflicts.
+        
+        Args:
+            pane_id: The pane ID
+            repo: Optional Repo instance (will create if not provided)
+        
+        Returns:
+            List of file paths with conflicts
+        """
+        if repo is None:
+            pane_path = self.get_pane_path(pane_id)
+            repo = Repo(pane_path)
+        
+        conflicted_files = []
+        try:
+            # Get unmerged paths (files with conflicts)
+            unmerged = repo.index.unmerged_blobs()
+            conflicted_files = list(unmerged.keys())
+            logger.debug(f"[Pane {pane_id}] Found {len(conflicted_files)} conflicted files")
+        except Exception as e:
+            logger.error(f"[Pane {pane_id}] Error getting conflicted files: {str(e)}")
+        
+        return conflicted_files
+    
+    def get_branch_diff(self, pane_id: int, branch_name: str, repo: Optional[Repo] = None) -> str:
+        """
+        Get full diff of changes from the branch compared to main.
+        
+        Args:
+            pane_id: The pane ID
+            branch_name: Name of the branch to diff
+            repo: Optional Repo instance
+        
+        Returns:
+            String containing the full diff
+        """
+        if repo is None:
+            pane_path = self.get_pane_path(pane_id)
+            repo = Repo(pane_path)
+        
+        try:
+            # Get diff from origin/main to the branch
+            diff = repo.git.diff('origin/main', branch_name)
+            logger.debug(f"[Pane {pane_id}] Generated diff for branch {branch_name}, length: {len(diff)} chars")
+            return diff
+        except Exception as e:
+            logger.error(f"[Pane {pane_id}] Error getting branch diff: {str(e)}")
+            return f"Error getting diff: {str(e)}"
+    
+    def abort_merge(self, pane_id: int) -> Dict[str, str]:
+        """
+        Abort an in-progress merge and reset to clean state.
+        
+        Args:
+            pane_id: The pane ID
+        
+        Returns:
+            Dict with status and message
+        """
+        pane_path = self.get_pane_path(pane_id)
+        logger.info(f"[Pane {pane_id}] [cwd: {pane_path}] Aborting merge")
+        
+        try:
+            repo = Repo(pane_path)
+            current_branch = repo.active_branch.name
+            
+            # Abort the merge
+            logger.info(f"[Pane {pane_id}] [cwd: {pane_path}] [branch: {current_branch}] Running: git merge --abort")
+            repo.git.merge('--abort')
+            
+            # Reset to clean state
+            logger.info(f"[Pane {pane_id}] [cwd: {pane_path}] [branch: {current_branch}] Running: git reset --hard")
+            repo.git.reset('--hard')
+            
+            logger.info(f"[Pane {pane_id}] [cwd: {pane_path}] [branch: {current_branch}] Merge aborted successfully")
+            return {
+                "status": "success",
+                "message": "Merge aborted and repository reset"
+            }
+        except GitCommandError as e:
+            logger.error(f"[Pane {pane_id}] [cwd: {pane_path}] Git error aborting merge: {str(e)}")
+            return {
+                "status": "error",
+                "message": f"Git error: {str(e)}"
+            }
+        except Exception as e:
+            logger.error(f"[Pane {pane_id}] [cwd: {pane_path}] Error aborting merge: {str(e)}")
+            return {
+                "status": "error",
+                "message": f"Error: {str(e)}"
+            }
+    
     def merge_pane(self, pane_id: int) -> Dict[str, str]:
         """
         Merge a pane's branch into main:
@@ -285,9 +380,12 @@ class GitOperations:
         2. Checkout main
         3. Pull latest
         4. Merge the branch
-        5. Push to origin
+        5. Push to origin (moved to complete_merge if conflicts occur)
         
-        Returns status dict.
+        Returns status dict with possible statuses:
+        - "success": Merge completed successfully
+        - "conflict": Merge conflict detected, needs resolution
+        - "error": Other error occurred
         """
         pane_path = self.get_pane_path(pane_id)
         logger.info(f"[Pane {pane_id}] [cwd: {pane_path}] Starting merge operation")
@@ -341,9 +439,32 @@ class GitOperations:
             }
         except GitCommandError as e:
             current_branch = repo.active_branch.name if repo else "unknown"
+            stdout = e.stdout if hasattr(e, 'stdout') else ""
+            stderr = e.stderr if hasattr(e, 'stderr') else ""
+            
+            # Check if this is a merge conflict
+            if "CONFLICT" in stdout or "Automatic merge failed" in stdout:
+                logger.warning(f"[Pane {pane_id}] [cwd: {pane_path}] [branch: {current_branch}] Merge conflict detected")
+                
+                # Get conflicted files
+                conflicted_files = self.get_conflicted_files(pane_id, repo)
+                logger.info(f"[Pane {pane_id}] [cwd: {pane_path}] [branch: {current_branch}] Conflicted files: {conflicted_files}")
+                
+                # Get full diff of the branch
+                diff = self.get_branch_diff(pane_id, branch_to_merge, repo)
+                
+                return {
+                    "status": "conflict",
+                    "message": f"Merge conflict in {len(conflicted_files)} file(s)",
+                    "branch": branch_to_merge,
+                    "conflicted_files": conflicted_files,
+                    "diff": diff
+                }
+            
+            # Not a conflict, just a regular error
             logger.error(f"[Pane {pane_id}] [cwd: {pane_path}] [branch: {current_branch}] Git command error during merge: {str(e)}")
-            logger.error(f"[Pane {pane_id}] [cwd: {pane_path}] [branch: {current_branch}] Git error stderr: {e.stderr if hasattr(e, 'stderr') else 'N/A'}")
-            logger.error(f"[Pane {pane_id}] [cwd: {pane_path}] [branch: {current_branch}] Git error stdout: {e.stdout if hasattr(e, 'stdout') else 'N/A'}")
+            logger.error(f"[Pane {pane_id}] [cwd: {pane_path}] [branch: {current_branch}] Git error stderr: {stderr}")
+            logger.error(f"[Pane {pane_id}] [cwd: {pane_path}] [branch: {current_branch}] Git error stdout: {stdout}")
             return {
                 "status": "error",
                 "message": f"Git error: {str(e)}"
@@ -351,6 +472,159 @@ class GitOperations:
         except Exception as e:
             current_branch = repo.active_branch.name if repo else "unknown"
             logger.error(f"[Pane {pane_id}] [cwd: {pane_path}] [branch: {current_branch}] Unexpected error during merge: {str(e)}")
+            return {
+                "status": "error",
+                "message": f"Error: {str(e)}"
+            }
+    
+    def complete_merge(self, pane_id: int, branch_to_merge: str) -> Dict[str, str]:
+        """
+        Complete a merge after conflicts have been resolved.
+        Assumes we're on main branch and merge is ready to be committed.
+        
+        Args:
+            pane_id: The pane ID
+            branch_to_merge: Name of the branch that was merged
+        
+        Returns:
+            Dict with status and message
+        """
+        pane_path = self.get_pane_path(pane_id)
+        logger.info(f"[Pane {pane_id}] [cwd: {pane_path}] Completing merge of {branch_to_merge}")
+        
+        try:
+            repo = Repo(pane_path)
+            current_branch = repo.active_branch.name
+            
+            if current_branch != "main":
+                logger.error(f"[Pane {pane_id}] [cwd: {pane_path}] [branch: {current_branch}] Not on main branch")
+                return {
+                    "status": "error",
+                    "message": f"Expected to be on main branch, but on {current_branch}"
+                }
+            
+            # Check if there are still unresolved conflicts
+            if repo.index.unmerged_blobs():
+                logger.error(f"[Pane {pane_id}] [cwd: {pane_path}] [branch: {current_branch}] Still has unresolved conflicts")
+                return {
+                    "status": "error",
+                    "message": "Cannot complete merge: unresolved conflicts remain"
+                }
+            
+            # Push to origin
+            logger.info(f"[Pane {pane_id}] [cwd: {pane_path}] [branch: {current_branch}] Running: git push origin main")
+            origin = repo.remote('origin')
+            push_info = origin.push('main')
+            logger.info(f"[Pane {pane_id}] [cwd: {pane_path}] [branch: {current_branch}] Push result: {push_info}")
+            for info in push_info:
+                logger.info(f"[Pane {pane_id}] [cwd: {pane_path}] [branch: {current_branch}] Push summary: {info.summary}")
+            
+            # Delete the temporary branch
+            logger.info(f"[Pane {pane_id}] [cwd: {pane_path}] [branch: {current_branch}] Running: git branch -D {branch_to_merge}")
+            repo.git.branch('-D', branch_to_merge)
+            logger.info(f"[Pane {pane_id}] [cwd: {pane_path}] [branch: {current_branch}] Deleted branch {branch_to_merge}")
+            
+            logger.info(f"[Pane {pane_id}] [cwd: {pane_path}] [branch: {current_branch}] Successfully completed merge of {branch_to_merge}")
+            return {
+                "status": "success",
+                "message": f"Successfully merged {branch_to_merge} into main"
+            }
+        except GitCommandError as e:
+            current_branch = repo.active_branch.name if repo else "unknown"
+            logger.error(f"[Pane {pane_id}] [cwd: {pane_path}] [branch: {current_branch}] Git error completing merge: {str(e)}")
+            return {
+                "status": "error",
+                "message": f"Git error: {str(e)}"
+            }
+        except Exception as e:
+            current_branch = repo.active_branch.name if repo else "unknown"
+            logger.error(f"[Pane {pane_id}] [cwd: {pane_path}] [branch: {current_branch}] Error completing merge: {str(e)}")
+            return {
+                "status": "error",
+                "message": f"Error: {str(e)}"
+            }
+    
+    async def resolve_merge_conflict(
+        self, 
+        pane_id: int, 
+        branch_name: str, 
+        conflicted_files: list[str],
+        diff: str,
+        agent_manager: 'AgentManager'
+    ) -> Dict[str, str]:
+        """
+        Resolve merge conflicts using cursor-agent.
+        
+        Args:
+            pane_id: The pane ID
+            branch_name: Name of the branch being merged
+            conflicted_files: List of files with conflicts
+            diff: Full diff of the branch
+            agent_manager: AgentManager instance to run the agent
+        
+        Returns:
+            Dict with status and message
+        """
+        pane_path = self.get_pane_path(pane_id)
+        logger.info(f"[Pane {pane_id}] [cwd: {pane_path}] Starting conflict resolution with agent")
+        
+        # Build the prompt for the agent
+        conflicted_files_str = '\n'.join([f"- {file}" for file in conflicted_files])
+        
+        # Truncate diff if it's too large (max 50000 chars to avoid overwhelming the agent)
+        if len(diff) > 50000:
+            diff = diff[:50000] + "\n\n... (diff truncated for brevity) ..."
+        
+        prompt = f"""A merge conflict has occurred while merging {branch_name} into main.
+
+Conflicted files:
+{conflicted_files_str}
+
+Full diff of changes from {branch_name}:
+```
+{diff}
+```
+
+Your task:
+1. Examine the conflicts in the files listed above
+2. Resolve all conflicts by editing the files
+3. Remove conflict markers (<<<<<<, =======, >>>>>>>)
+4. Stage the resolved files with git add
+5. Complete the merge by running: git commit --no-edit
+
+Make sure the final result preserves the intent of the changes while resolving conflicts appropriately.
+DO NOT push to origin - that will be done automatically after you complete the merge."""
+        
+        logger.info(f"[Pane {pane_id}] [cwd: {pane_path}] Running agent with conflict resolution prompt")
+        
+        try:
+            # Run agent synchronously
+            result = await agent_manager.run_agent_sync(pane_id, prompt)
+            
+            if result["status"] == "error":
+                logger.error(f"[Pane {pane_id}] [cwd: {pane_path}] Agent failed: {result['message']}")
+                return {
+                    "status": "error",
+                    "message": f"Agent failed: {result['message']}"
+                }
+            
+            # Check if conflicts are resolved
+            repo = Repo(pane_path)
+            if repo.index.unmerged_blobs():
+                logger.error(f"[Pane {pane_id}] [cwd: {pane_path}] Conflicts still remain after agent run")
+                return {
+                    "status": "error",
+                    "message": "Agent completed but conflicts still remain"
+                }
+            
+            logger.info(f"[Pane {pane_id}] [cwd: {pane_path}] Agent successfully resolved conflicts")
+            return {
+                "status": "success",
+                "message": "Conflicts resolved by agent",
+                "output": result.get("output", "")
+            }
+        except Exception as e:
+            logger.error(f"[Pane {pane_id}] [cwd: {pane_path}] Error during conflict resolution: {str(e)}")
             return {
                 "status": "error",
                 "message": f"Error: {str(e)}"

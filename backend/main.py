@@ -276,6 +276,7 @@ async def auto_update_pane(pane_id: int):
 async def process_merge_queue():
     """
     Process merge queue sequentially.
+    Handles conflicts by invoking cursor-agent for automatic resolution.
     """
     global merge_in_progress
     
@@ -292,13 +293,62 @@ async def process_merge_queue():
                 
                 logger.info(f"[MERGE QUEUE] Merge result for pane {pane_id}: status={result['status']}, message={result['message']}")
                 
-                if result["status"] == "error":
+                if result["status"] == "conflict":
+                    # Merge conflict detected, attempt automatic resolution
+                    logger.warning(f"[MERGE QUEUE] Conflict detected for pane {pane_id}, attempting automatic resolution")
+                    
+                    branch_name = result.get("branch", "unknown")
+                    conflicted_files_raw = result.get("conflicted_files", [])
+                    conflicted_files = list(conflicted_files_raw) if isinstance(conflicted_files_raw, list) else []
+                    diff = result.get("diff", "")
+                    
+                    logger.info(f"[MERGE QUEUE] Invoking agent to resolve conflicts in {len(conflicted_files)} file(s)")
+                    
+                    # Try to resolve with agent
+                    resolution_result = await git_ops.resolve_merge_conflict(
+                        pane_id,
+                        branch_name,
+                        conflicted_files,
+                        diff,
+                        agent_manager
+                    )
+                    
+                    if resolution_result["status"] == "success":
+                        logger.info(f"[MERGE QUEUE] Agent successfully resolved conflicts for pane {pane_id}")
+                        
+                        # Complete the merge (push and cleanup)
+                        complete_result = git_ops.complete_merge(pane_id, branch_name)
+                        
+                        if complete_result["status"] == "success":
+                            logger.info(f"[MERGE QUEUE] Merge completed successfully for pane {pane_id}")
+                        else:
+                            logger.error(f"[MERGE QUEUE] Failed to complete merge for pane {pane_id}: {complete_result['message']}")
+                    else:
+                        # Agent failed to resolve conflicts, abort the merge
+                        logger.error(f"[MERGE QUEUE] Agent failed to resolve conflicts for pane {pane_id}: {resolution_result['message']}")
+                        logger.info(f"[MERGE QUEUE] Aborting merge for pane {pane_id}")
+                        
+                        abort_result = git_ops.abort_merge(pane_id)
+                        
+                        if abort_result["status"] == "success":
+                            logger.info(f"[MERGE QUEUE] Successfully aborted merge for pane {pane_id}")
+                        else:
+                            logger.error(f"[MERGE QUEUE] Failed to abort merge for pane {pane_id}: {abort_result['message']}")
+                
+                elif result["status"] == "error":
                     logger.error(f"[MERGE QUEUE] Merge failed for pane {pane_id}: {result['message']}")
                 else:
                     logger.info(f"[MERGE QUEUE] Merge successful for pane {pane_id}: {result['message']}")
                 
             except Exception as e:
                 logger.error(f"[MERGE QUEUE] Exception during merge for pane {pane_id}: {e}", exc_info=True)
+                
+                # Try to abort merge in case of exception
+                try:
+                    logger.info(f"[MERGE QUEUE] Attempting to abort merge for pane {pane_id} after exception")
+                    git_ops.abort_merge(pane_id)
+                except Exception as abort_error:
+                    logger.error(f"[MERGE QUEUE] Failed to abort merge after exception: {abort_error}")
             
             # Remove from queue
             merge_queue.pop(0)

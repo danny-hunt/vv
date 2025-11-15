@@ -1,5 +1,4 @@
 import asyncio
-import subprocess
 from pathlib import Path
 from typing import Dict, AsyncIterator, Optional, TYPE_CHECKING
 import logging
@@ -198,5 +197,104 @@ class AgentManager:
             return {
                 "status": "error",
                 "message": str(e)
+            }
+    
+    async def run_agent_sync(self, pane_id: int, user_prompt: str) -> Dict[str, any]:
+        """
+        Run cursor-agent synchronously and wait for completion.
+        This is designed for use in conflict resolution where we need to wait.
+        
+        Args:
+            pane_id: The pane ID
+            user_prompt: The user's prompt for the agent
+        
+        Returns:
+            Dict with status, message, exit_code, and output
+        """
+        pane_path = self.get_pane_path(pane_id)
+        
+        if not pane_path.exists():
+            return {
+                "status": "error",
+                "message": f"Pane directory {pane_path} does not exist",
+                "exit_code": -1,
+                "output": ""
+            }
+        
+        try:
+            logger.info(f"[Pane {pane_id}] Starting synchronous cursor-agent run")
+            
+            # Start cursor-agent as subprocess
+            process = await asyncio.create_subprocess_exec(
+                'cursor-agent',
+                user_prompt,
+                cwd=str(pane_path),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.STDOUT
+            )
+            
+            # Read output and wait for completion
+            output_lines = []
+            while True:
+                line = await process.stdout.readline()
+                if not line:
+                    break
+                
+                decoded_line = line.decode('utf-8').rstrip()
+                output_lines.append(decoded_line)
+                logger.debug(f"[Pane {pane_id}] Agent output: {decoded_line}")
+            
+            # Wait for process to complete
+            exit_code = await process.wait()
+            
+            full_output = '\n'.join(output_lines)
+            
+            # After agent completes, auto-commit changes if successful
+            if exit_code == 0 and self.git_ops is not None:
+                logger.info(f"[Pane {pane_id}] Agent completed successfully, committing changes...")
+                
+                try:
+                    # Run git operations in executor to avoid blocking
+                    loop = asyncio.get_event_loop()
+                    result = await loop.run_in_executor(
+                        None, 
+                        self.git_ops.commit_changes, 
+                        pane_id,
+                        "Resolved merge conflicts"
+                    )
+                    
+                    if result["status"] == "success":
+                        logger.info(f"[Pane {pane_id}] Successfully committed conflict resolution: {result['message']}")
+                        full_output += f"\n\n✓ {result['message']}"
+                    else:
+                        logger.warning(f"[Pane {pane_id}] Commit returned status: {result['message']}")
+                        if "No changes to commit" not in result["message"]:
+                            full_output += f"\n\n⚠ Commit status: {result['message']}"
+                except Exception as commit_error:
+                    logger.error(f"[Pane {pane_id}] Error committing changes: {commit_error}")
+                    full_output += f"\n\n✗ Error committing changes: {str(commit_error)}"
+            
+            logger.info(f"[Pane {pane_id}] Agent completed with exit code {exit_code}")
+            
+            return {
+                "status": "success" if exit_code == 0 else "error",
+                "message": "Agent completed" if exit_code == 0 else f"Agent failed with exit code {exit_code}",
+                "exit_code": exit_code,
+                "output": full_output
+            }
+        except FileNotFoundError:
+            return {
+                "status": "error",
+                "message": "cursor-agent CLI not found in PATH",
+                "exit_code": -1,
+                "output": ""
+            }
+        except Exception as e:
+            logger.error(f"[Pane {pane_id}] Error running agent: {e}")
+            return {
+                "status": "error",
+                "message": str(e),
+                "exit_code": -1,
+                "output": ""
             }
 
