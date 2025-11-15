@@ -51,9 +51,7 @@ function App() {
 
   const handleAddPane = async () => {
     // Find the first inactive pane
-    const inactivePaneIds = panes
-      .filter((p) => !p.active)
-      .map((p) => p.pane_id);
+    const inactivePaneIds = panes.filter((p) => !p.active).map((p) => p.pane_id);
 
     if (inactivePaneIds.length === 0) {
       console.error("No available panes");
@@ -70,28 +68,6 @@ function App() {
     }
   };
 
-  const handleRemovePane = async () => {
-    // Find the last active pane that's not running an agent and not in merge queue
-    const removablePanes = panes
-      .filter((p) => p.active && !p.agent_running)
-      .filter((p) => !mergeQueue.some((m) => m.pane_id === p.pane_id))
-      .sort((a, b) => b.pane_id - a.pane_id);
-
-    if (removablePanes.length === 0) {
-      console.error("No removable panes");
-      return;
-    }
-
-    const paneToRemove = removablePanes[0];
-
-    try {
-      await apiClient.deletePane(paneToRemove.pane_id);
-      console.log(`Deleted pane ${paneToRemove.pane_id}`);
-    } catch (err) {
-      console.error(`Failed to delete pane ${paneToRemove.pane_id}:`, err);
-    }
-  };
-
   const handleMerge = (paneId: number) => {
     // Add to merge queue if not already there
     if (!mergeQueue.some((m) => m.pane_id === paneId)) {
@@ -99,16 +75,63 @@ function App() {
     }
   };
 
+  const handleDiscard = async (paneId: number) => {
+    try {
+      await apiClient.deletePane(paneId);
+      console.log(`Discarded pane ${paneId}`);
+    } catch (err) {
+      console.error(`Failed to discard pane ${paneId}:`, err);
+    }
+  };
+
+  const handleKeep = async (paneId: number) => {
+    try {
+      // First, merge the pane
+      await apiClient.mergePane(paneId);
+      console.log(`Keeping pane ${paneId} - added to merge queue`);
+
+      // Add to merge queue for UI tracking
+      if (!mergeQueue.some((m) => m.pane_id === paneId)) {
+        setMergeQueue((prev) => [...prev, { pane_id: paneId, status: "queued" }]);
+      }
+
+      // Wait for merge to complete by polling the pane status
+      const waitForMerge = async () => {
+        let attempts = 0;
+        const maxAttempts = 30; // 30 seconds max wait
+
+        while (attempts < maxAttempts) {
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+
+          const state = await apiClient.getOrchestrationState();
+          const pane = state.panes.find((p) => p.pane_id === paneId);
+
+          // If pane is now inactive (on main), merge is complete
+          if (pane && !pane.active) {
+            console.log(`Merge complete for pane ${paneId}, creating new branch`);
+            // Create a new branch for continued work
+            await apiClient.createPane(paneId);
+            return;
+          }
+
+          attempts++;
+        }
+
+        console.warn(`Timeout waiting for merge to complete for pane ${paneId}`);
+      };
+
+      // Wait for merge and create new branch
+      await waitForMerge();
+    } catch (err) {
+      console.error(`Failed to keep pane ${paneId}:`, err);
+    }
+  };
+
   const handleTitleChange = (paneId: number, title: string) => {
-    setPanes((prev) =>
-      prev.map((p) => (p.pane_id === paneId ? { ...p, title } : p))
-    );
+    setPanes((prev) => prev.map((p) => (p.pane_id === paneId ? { ...p, title } : p)));
   };
 
   const activePanes = panes.filter((p) => p.active);
-  const canRemove = activePanes.some(
-    (p) => !p.agent_running && !mergeQueue.some((m) => m.pane_id === p.pane_id)
-  );
 
   if (isLoading) {
     return (
@@ -135,14 +158,12 @@ function App() {
         panes={activePanes}
         onMerge={handleMerge}
         onTitleChange={handleTitleChange}
+        onDiscard={handleDiscard}
+        onKeep={handleKeep}
+        mergeQueue={mergeQueue}
       />
 
-      <FloatingControls
-        activePaneCount={activePanes.length}
-        onAddPane={handleAddPane}
-        onRemovePane={handleRemovePane}
-        canRemove={canRemove}
-      />
+      <FloatingControls activePaneCount={activePanes.length} onAddPane={handleAddPane} />
 
       {/* Merge queue indicator */}
       {mergeQueue.length > 0 && (
@@ -162,4 +183,3 @@ function App() {
 }
 
 export default App;
-

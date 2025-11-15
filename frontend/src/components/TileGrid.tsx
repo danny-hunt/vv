@@ -1,13 +1,16 @@
 import { Tile } from "./Tile";
-import type { Pane } from "@/types";
+import type { Pane, MergeQueueItem } from "@/types";
 
 interface TileGridProps {
   panes: Pane[];
   onMerge: (paneId: number) => void;
   onTitleChange: (paneId: number, title: string) => void;
+  onDiscard: (paneId: number) => void;
+  onKeep: (paneId: number) => void;
+  mergeQueue: MergeQueueItem[];
 }
 
-export function TileGrid({ panes, onMerge, onTitleChange }: TileGridProps) {
+export function TileGrid({ panes, onMerge, onTitleChange, onDiscard, onKeep, mergeQueue }: TileGridProps) {
   const activePanes = panes.filter((p) => p.active);
   const count = activePanes.length;
 
@@ -31,9 +34,11 @@ export function TileGrid({ panes, onMerge, onTitleChange }: TileGridProps) {
           pane={pane}
           onMerge={onMerge}
           onTitleChange={onTitleChange}
+          onDiscard={onDiscard}
+          onKeep={onKeep}
+          isInMergeQueue={mergeQueue.some((m) => m.pane_id === pane.pane_id)}
         />
       ))}
     </div>
   );
 }
-

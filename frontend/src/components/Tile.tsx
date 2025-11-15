@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { FloatingWindow } from "./FloatingWindow";
-import { GitMerge } from "lucide-react";
+import { GitMerge, Trash2, Check } from "lucide-react";
 import type { Pane } from "@/types";
 
 const PANE_LABELS = ["apricot", "banana", "cucumber", "dragonfruit", "eggplant", "fennel"];
@@ -20,9 +20,12 @@ interface TileProps {
   pane: Pane;
   onMerge: (paneId: number) => void;
   onTitleChange: (paneId: number, title: string) => void;
+  onDiscard: (paneId: number) => void;
+  onKeep: (paneId: number) => void;
+  isInMergeQueue: boolean;
 }
 
-export function Tile({ pane, onMerge, onTitleChange }: TileProps) {
+export function Tile({ pane, onMerge, onTitleChange, onDiscard, onKeep, isInMergeQueue }: TileProps) {
   const [title, setTitle] = useState(pane.title);
 
   const handleTitleGenerated = (newTitle: string) => {
@@ -38,9 +41,7 @@ export function Tile({ pane, onMerge, onTitleChange }: TileProps) {
     <div className="relative w-full h-full bg-background border rounded-lg overflow-hidden">
       {/* Status badges */}
       <div className="absolute bottom-2 left-2 z-10 flex gap-2">
-        <Badge className={`text-xs text-white border-0 ${paneColor}`}>
-          {paneLabel}
-        </Badge>
+        <Badge className={`text-xs text-white border-0 ${paneColor}`}>{paneLabel}</Badge>
         {pane.is_ahead && (
           <Badge variant="default" className="text-xs bg-blue-600">
             Ahead
@@ -61,23 +62,38 @@ export function Tile({ pane, onMerge, onTitleChange }: TileProps) {
       {/* Merge button */}
       {pane.is_ahead && !pane.agent_running && (
         <div className="absolute top-2 left-1/2 -translate-x-1/2 z-10">
-          <Button
-            size="sm"
-            onClick={() => onMerge(pane.pane_id)}
-            className="shadow-lg"
-          >
+          <Button size="sm" onClick={() => onMerge(pane.pane_id)} className="shadow-lg">
             <GitMerge className="h-4 w-4 mr-2" />
             Merge
           </Button>
         </div>
       )}
 
+      {/* Discard and Keep buttons */}
+      {pane.active && !pane.agent_running && !isInMergeQueue && (
+        <div className="absolute bottom-2 right-2 z-10 flex gap-2">
+          <Button
+            size="sm"
+            variant="destructive"
+            onClick={() => onDiscard(pane.pane_id)}
+            className="shadow-lg"
+            title="Discard changes and reset to main"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => onKeep(pane.pane_id)}
+            className="shadow-lg bg-green-600 hover:bg-green-700"
+            title="Keep changes (merge to main and start new branch)"
+          >
+            <Check className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
+
       {/* Floating window for agent interaction */}
-      <FloatingWindow
-        paneId={pane.pane_id}
-        title={title}
-        onTitleGenerated={handleTitleGenerated}
-      />
+      <FloatingWindow paneId={pane.pane_id} title={title} onTitleGenerated={handleTitleGenerated} />
 
       {/* Iframe with webapp */}
       <iframe
@@ -88,10 +104,7 @@ export function Tile({ pane, onMerge, onTitleChange }: TileProps) {
       />
 
       {/* Grey overlay when stale */}
-      {pane.is_stale && (
-        <div className="absolute inset-0 bg-gray-500 bg-opacity-30 pointer-events-none z-0" />
-      )}
+      {pane.is_stale && <div className="absolute inset-0 bg-gray-500 bg-opacity-30 pointer-events-none z-0" />}
     </div>
   );
 }
-
