@@ -14,6 +14,7 @@ class AgentManager:
         self.base_path = Path(base_path)
         self.running_agents: Dict[int, asyncio.subprocess.Process] = {}
         self.agent_outputs: Dict[int, asyncio.Queue] = {}
+        self.agent_prompts: Dict[int, str] = {}  # Store user prompts for commit messages
         self.git_ops = git_ops
     
     def get_pane_path(self, pane_id: int) -> Path:
@@ -52,6 +53,9 @@ class AgentManager:
         try:
             # Create output queue for this pane
             self.agent_outputs[pane_id] = asyncio.Queue()
+            
+            # Store the user prompt for commit message
+            self.agent_prompts[pane_id] = user_prompt
             
             # Start cursor-agent as subprocess
             process = await asyncio.create_subprocess_exec(
@@ -105,13 +109,16 @@ class AgentManager:
                 logger.info(f"Agent completed for pane {pane_id}, staging and committing changes...")
                 
                 try:
+                    # Get the user's prompt for the commit message
+                    commit_message = self.agent_prompts.get(pane_id, "Agent changes")
+                    
                     # Run git operations in executor to avoid blocking
                     loop = asyncio.get_event_loop()
                     result = await loop.run_in_executor(
                         None, 
                         self.git_ops.commit_changes, 
                         pane_id,
-                        "Agent changes"
+                        commit_message
                     )
                     
                     if result["status"] == "success":
@@ -137,6 +144,8 @@ class AgentManager:
             # Clean up
             if pane_id in self.running_agents:
                 del self.running_agents[pane_id]
+            if pane_id in self.agent_prompts:
+                del self.agent_prompts[pane_id]
     
     async def stream_agent_output(self, pane_id: int) -> AsyncIterator[str]:
         """
@@ -254,13 +263,16 @@ class AgentManager:
                 logger.info(f"[Pane {pane_id}] Agent completed successfully, committing changes...")
                 
                 try:
+                    # Use a descriptive commit message for merge conflict resolution
+                    commit_message = "Resolved merge conflicts"
+                    
                     # Run git operations in executor to avoid blocking
                     loop = asyncio.get_event_loop()
                     result = await loop.run_in_executor(
                         None, 
                         self.git_ops.commit_changes, 
                         pane_id,
-                        "Resolved merge conflicts"
+                        commit_message
                     )
                     
                     if result["status"] == "success":

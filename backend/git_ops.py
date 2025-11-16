@@ -414,10 +414,19 @@ class GitOperations:
             pull_result = origin.pull('main')
             logger.info(f"[Pane {pane_id}] [cwd: {pane_path}] [branch: {current_branch}] Pull result: {pull_result}")
             
-            # Merge the branch
-            merge_cmd = f"git merge {branch_to_merge} --no-ff -m 'Merge {branch_to_merge}'"
+            # Get the most recent commit message from the branch to use as merge message
+            try:
+                latest_commit = repo.commit(branch_to_merge)
+                commit_message = latest_commit.message.strip()
+                logger.info(f"[Pane {pane_id}] [cwd: {pane_path}] [branch: {current_branch}] Using commit message from branch: {commit_message}")
+            except Exception as e:
+                logger.warning(f"[Pane {pane_id}] [cwd: {pane_path}] [branch: {current_branch}] Could not get commit message: {e}")
+                commit_message = f"Merge {branch_to_merge}"
+            
+            # Merge the branch with descriptive message
+            merge_cmd = f"git merge {branch_to_merge} --no-ff -m '{commit_message}'"
             logger.info(f"[Pane {pane_id}] [cwd: {pane_path}] [branch: {current_branch}] Running: {merge_cmd}")
-            merge_result = repo.git.merge(branch_to_merge, '--no-ff', '-m', f'Merge {branch_to_merge}')
+            merge_result = repo.git.merge(branch_to_merge, '--no-ff', '-m', commit_message)
             logger.info(f"[Pane {pane_id}] [cwd: {pane_path}] [branch: {current_branch}] Merge result: {merge_result}")
             
             # Push to origin
